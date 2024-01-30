@@ -151,9 +151,6 @@ jobs:
         export PATH=$BASE_PATH/work/nginx/sbin:$PATH
         TEST_NGINX_TIMEOUT=20 prove -j$JOBS -r t/ 2>&1
 
-        echo "Nginx SSL plain FFI"
-        export CI_SKIP_NGINX_C=1
-        TEST_NGINX_TIMEOUT=10 prove -j$JOBS t/openssl/ssl/ 2>&1
 
     - name: Run Valgrind
       if: contains(matrix.extras, 'valgrind')
@@ -164,9 +161,5 @@ jobs:
         stdbuf -o 0 -e 0 prove -j$JOBS -r t/ 2>&1 | grep -v "Connection refused" | grep -v "Retry connecting after" | tee output.log
         if grep -q 'insert_a_suppression_name_here' output.log; then echo "Valgrind found problems"; exit 1; fi
 
-        echo "Nginx SSL plain FFI"
-        export CI_SKIP_NGINX_C=1
-        stdbuf -o 0 -e 0 prove -j$JOBS t/openssl/ssl/ 2>&1 | grep -v "Connection refused" | grep -v "Retry connecting after" | tee output.log
-        if grep -q 'insert_a_suppression_name_here' output.log; then echo "Valgrind found problems"; exit 1; fi
 
     
