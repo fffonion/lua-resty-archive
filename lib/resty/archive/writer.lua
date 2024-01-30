@@ -25,11 +25,11 @@ local function writer_new(format, filter)
   filter = filter or "gzip"
   format = format or "zip"
 
-  if not lib.archive_write_add_filter_by_name(ctx, filter) ~= lib.ARCHIVE_OK then
+  if lib.archive_write_add_filter_by_name(ctx, filter) ~= lib.ARCHIVE_OK then
     return nil, "No such filter: " .. filter
   end
 
-  if not lib.archive_write_set_format_by_name(ctx, format) ~= lib.ARCHIVE_OK then
+  if lib.archive_write_set_format_by_name(ctx, format) ~= lib.ARCHIVE_OK then
     return nil, "No such format: " .. format
   end
 
@@ -38,23 +38,23 @@ local function writer_new(format, filter)
   }, writer_mt), nil
 end
 
-local function archive_write(filename, entries)
-  local a = lib.archive_write_new()
-  lib.archive_write_add_filter_gzip(a)
-  lib.archive_write_set_format_zip(a)
-  lib.archive_write_open_filename(a, filename)
+-- local function archive_write(filename, entries)
+--   local a = lib.archive_write_new()
+--   lib.archive_write_add_filter_gzip(a)
+--   lib.archive_write_set_format_zip(a)
+--   lib.archive_write_open_filename(a, filename)
 
-  for _, entry in ipairs(entries) do
-    local e = lib.archive_entry_new()
-    lib.archive_entry_set_size(e, entry.size)
-    lib.archive_write_header(a, e)
-    if entry.data then
-      lib.archive_write_data(a, entry.data, #entry.data)
-    end
-  end
+--   for _, entry in ipairs(entries) do
+--     local e = lib.archive_entry_new()
+--     lib.archive_entry_set_size(e, entry.size)
+--     lib.archive_write_header(a, e)
+--     if entry.data then
+--       lib.archive_write_data(a, entry.data, #entry.data)
+--     end
+--   end
 
-  lib.archive_write_free(a)
-end
+--   lib.archive_write_free(a)
+-- end
 
 function _M.open_filename(filename, blocksize, format, filter)
   if type(filename) ~= "string" then

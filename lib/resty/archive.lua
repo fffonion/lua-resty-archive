@@ -1,5 +1,5 @@
 local Reader = require "resty.archive.reader"
-local Writer = require "resty.archive.writer"
+-- local Writer = require "resty.archive.writer"
 
 local function read_archive_entry(filename, entry, basename_only)
   local r, err = Reader.open_filename(filename)
