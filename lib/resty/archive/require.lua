@@ -26,7 +26,7 @@ end
 
 local function verify_checksum(path, sha256sum, cached)
   local c
-  if package_cached[path] then
+  if cached and package_cached[path] then
     c = package_cached[path]
   else
     local f, err = io.open(path, "rb")
@@ -137,9 +137,12 @@ function _M.add_package_path(path, sha256sum, cached)
 end
 
 function _M.register_loader()
-  if package.loaders[#package.loaders] == loader then
-    return
+  for _, f in ipairs(package.loaders) do
+    if f == loader then
+      return
+    end
   end
+
   package.loaders[#package.loaders + 1] = loader
 
   return true

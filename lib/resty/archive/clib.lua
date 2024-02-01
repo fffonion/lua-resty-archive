@@ -18,7 +18,8 @@ end
 -- Define structs and enums
 ffi.cdef[[
 typedef struct archive archive;
-typedef struct archive_entry archive_entry; 
+typedef struct archive_entry archive_entry;
+typedef unsigned int mode_t;
 
 enum {
   ARCHIVE_OK = 0,
@@ -27,6 +28,17 @@ enum {
   ARCHIVE_WARN = -20,
   ARCHIVE_FAILED = -25,
   ARCHIVE_FATAL = -30
+};
+
+enum {
+  AE_IFMT = 0170000,
+  AE_IFREG = 0100000,
+  AE_IFLNK = 0120000,
+  AE_IFSOCK = 0140000,
+  AE_IFCHR = 0020000,
+  AE_IFBLK = 0060000,
+  AE_IFDIR = 0040000,
+  AE_IFIFO = 0010000
 };
 
 // read
@@ -54,13 +66,12 @@ int archive_write_free(archive *);
 
 int archive_write_add_filter_by_name(archive *, const char *name);
 int archive_write_set_format_by_name(archive *, const char *name);  
-int archive_write_set_format_raw(struct archive *);
+int archive_write_set_options(struct archive *, const char *options);
 
 int archive_write_open_filename(archive *, const char *);   
 
 int archive_write_header(archive *, archive_entry *);
 int archive_write_data(archive *, const void *, size_t);
-int archive_write_finish_entry(archive *);  
 
 // entry
 archive_entry *archive_entry_new(void);
@@ -72,6 +83,10 @@ int archive_entry_size(archive_entry *);
 void archive_entry_set_size(archive_entry *, size_t);
 const char *archive_entry_pathname(archive_entry *);
 void archive_entry_set_pathname(struct archive_entry *a, const char *path);
+mode_t archive_entry_filetype(struct archive_entry *);
+void archive_entry_set_filetype(struct archive_entry *, mode_t type);
+mode_t archive_entry_perm(struct archive_entry *a);
+void archive_entry_set_perm(struct archive_entry *a, mode_t mode);
 int archive_entry_is_encrypted(archive_entry *);
 
 // utils

@@ -2,11 +2,8 @@ local ffi = require("ffi")
 
 local clib = require "resty.archive.clib"
 local lib = clib.clib
-local format_error = clib.format_error
 
-local _M = {
-  format_error = format_error,
-}
+local _M = {}
 
 local entry_mt = {__index = _M}
 
@@ -23,6 +20,10 @@ function _M.new()
   return setmetatable({
     ctx = ctx,
   }, entry_mt)
+end
+
+function _M.istype(l)
+  return l and l.ctx and ffi.istype("archive_entry*", l.ctx)
 end
 
 function _M.wrap(ctx, archive)
@@ -43,8 +44,8 @@ function _M:clone()
 end
 
 function _M:clear()
-  if lib.archive_entry_clear(self.ctx) ~= lib.ARCHIVE_OK then
-    return nil, self:format_error("entry:clear")
+  if lib.archive_entry_clear(self.ctx) == nil then
+    return nil, "entry:clear:archive_entry_clear() failed"
   end
 
   return self
@@ -53,7 +54,7 @@ end
 function _M:get_size()
   local sz = lib.archive_entry_size(self.ctx)
   if sz < 0 then
-    return nil, self:format_error("entry:size")
+    return nil, "entry:size:archive_entry_size() failed"
   end
 
   return tonumber(sz)
@@ -61,17 +62,14 @@ end
 _M.size = _M.get_size
 
 function _M:set_size(sz)
-  if lib.archive_entry_set_size(self.ctx, sz) ~= lib.ARCHIVE_OK then
-    return nil, self:format_error("entry:set_size")
-  end
-
+  lib.archive_entry_set_size(self.ctx, sz)
   return true
 end
 
 function _M:get_pathname()
   local pathname = lib.archive_entry_pathname(self.ctx)
   if pathname == nil then
-    return nil, self:format_error("entry:pathname")
+    return nil, "entry:pathname:archive_entry_pathname() failed"
   end
 
   return ffi.string(pathname)
@@ -79,10 +77,25 @@ end
 _M.pathname = _M.get_pathname
 
 function _M:set_pathname(pathname)
-  if lib.archive_entry_set_pathname(self.ctx, pathname) ~= lib.ARCHIVE_OK then
-    return nil, self:format_error("entry:set_pathname")
-  end
+  lib.archive_entry_set_pathname(self.ctx, pathname)
+  return true
+end
 
+function _M:get_filetype()
+  return lib.archive_entry_filetype(self.ctx)
+end
+
+function _M:set_filetype(filetype)
+  lib.archive_entry_set_filetype(self.ctx, filetype)
+  return true
+end
+
+function _M:get_perm()
+  return lib.archive_entry_perm(self.ctx)
+end
+
+function _M:set_perm(mode)
+  lib.archive_entry_set_perm(self.ctx, tonumber(mode, 8))
   return true
 end
 
@@ -96,7 +109,7 @@ function _M:read_data()
   end
 
   if lib.archive_position_compressed(self.actx) ~= self.aposition then
-    return nil, self:format_error("entry:read_data: archive position mismatch")
+    return nil, "entry:read_data: archive position mismatch"
   end
 
   local data = {}
@@ -104,7 +117,7 @@ function _M:read_data()
   while true do
     read = lib.archive_read_data(self.actx, buf, 10240)
     if read < 0 then
-      return nil, self:format_error("entry:read_data")
+      return nil, "entry:read_data:archive_read_data() failed"
     elseif read == 0 then
       break
     end

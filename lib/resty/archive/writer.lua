@@ -1,6 +1,7 @@
 local ffi = require("ffi")
 
 local clib = require "resty.archive.clib"
+local entry_lib = require "resty.archive.entry"
 local lib = clib.clib
 local format_error = clib.format_error
 
@@ -9,28 +10,41 @@ local _M = {
 }
 local writer_mt = {__index = _M}
 
-local function write_close(ctx)
+local entry_tmp
+
+local function writer_close(ctx)
+  if ctx == nil then
+    return
+  end
+
   lib.archive_write_close(ctx)
   lib.archive_write_free(ctx)
 end
 
-local function writer_new(format, filter)
+local function writer_new(format, filter, options)
   local ctx = lib.archive_write_new()
   if ctx == nil then
     return nil, "failed to create writer"
   end
 
-  ffi.gc(ctx, write_close)
+  ffi.gc(ctx, writer_close)
 
-  filter = filter or "gzip"
   format = format or "zip"
 
-  if lib.archive_write_add_filter_by_name(ctx, filter) ~= lib.ARCHIVE_OK then
-    return nil, "No such filter: " .. filter
+  if filter then
+    if lib.archive_write_add_filter_by_name(ctx, filter) ~= lib.ARCHIVE_OK then
+      return nil, "No such filter: " .. filter
+    end
   end
 
   if lib.archive_write_set_format_by_name(ctx, format) ~= lib.ARCHIVE_OK then
     return nil, "No such format: " .. format
+  end
+
+  if options then
+    if lib.archive_write_set_options(ctx, options) ~= lib.ARCHIVE_OK then
+      return nil, "failed to set options: " .. options
+    end
   end
 
   return setmetatable({
@@ -38,47 +52,29 @@ local function writer_new(format, filter)
   }, writer_mt), nil
 end
 
--- local function archive_write(filename, entries)
---   local a = lib.archive_write_new()
---   lib.archive_write_add_filter_gzip(a)
---   lib.archive_write_set_format_zip(a)
---   lib.archive_write_open_filename(a, filename)
-
---   for _, entry in ipairs(entries) do
---     local e = lib.archive_entry_new()
---     lib.archive_entry_set_size(e, entry.size)
---     lib.archive_write_header(a, e)
---     if entry.data then
---       lib.archive_write_data(a, entry.data, #entry.data)
---     end
---   end
-
---   lib.archive_write_free(a)
--- end
-
-function _M.open_filename(filename, blocksize, format, filter)
+function _M.open_filename(filename, format, filter, options)
   if type(filename) ~= "string" then
     return false, "writer:open_filename: except a string at #1"
   end
 
-  local self, err = writer_new(format, filter)
+  local self, err = writer_new(format, filter, options)
   if not self then
     return nil, "writer.open_filename: " .. err
   end
 
-  if lib.archive_write_open_filename(self.ctx, filename, blocksize or 10240) ~= lib.ARCHIVE_OK then
+  if lib.archive_write_open_filename(self.ctx, filename) ~= lib.ARCHIVE_OK then
     return nil, self:format_error("writer:open_filename")
   end
 
   return self
 end
 
-function _M.open_memory(buff, format, filter)
+function _M.open_memory(buff, format, filter, options)
   if type(buff) ~= "string" then
     return false, "writer:open_memory: except a string at #1"
   end
 
-  local self, err = writer_new(format, filter)
+  local self, err = writer_new(format, filter, options)
   if not self then
     return nil, "writer.open_memory: " .. err
   end
@@ -89,6 +85,72 @@ function _M.open_memory(buff, format, filter)
   end
 
   return self
+end
+
+function _M:write_entry(data, entry)
+  if type(data) ~= "string" then
+    return false, "expect a string at #1"
+  elseif not entry_lib.istype(entry) then
+    return false, "expect an entry instance at #2"
+  end
+
+  local _, err = lib.archive_entry_set_size(entry.ctx, #data)
+  if err then
+    return false, self:format_error("writer:write_entry:archive_entry_set_size")
+  end
+
+  _, err = lib.archive_write_header(self.ctx, entry.ctx)
+  if err then
+    return false, self:format_error("writer:write_entry:archive_write_header")
+  end
+
+  _, err = lib.archive_write_data(self.ctx, data, #data)
+  if err then
+    return false, self:format_error("writer:write_entry:archive_write_data")
+  end
+
+  return true
+end
+
+function _M:write_data(data, path)
+  if type(data) ~= "string" then
+    return false, "expect a string at #1"
+  elseif type(path) ~= "string" then
+    return false, "expect a string at #2"
+  end
+
+  local _, err
+  if not entry_tmp then
+    entry_tmp, err = entry_lib.new()
+  else
+    _, err = entry_tmp:clear()
+  end
+
+  if err then
+    return false, "writer:write_data: " .. err
+  end
+
+  _, err = lib.archive_entry_set_pathname(entry_tmp.ctx, path)
+  if err then
+    return false, self:format_error("writer:write_data:archive_entry_set_pathname")
+  end
+
+  _, err = lib.archive_entry_set_filetype(entry_tmp.ctx, lib.AE_IFREG)
+  if err then
+    return false, self:format_error("writer:write_data:archive_entry_set_filetype")
+  end
+
+  _, err = lib.archive_entry_set_perm(entry_tmp.ctx, 0644)
+  if err then
+    return false, self:format_error("writer:write_data:archive_entry_set_mode")
+  end
+
+  return self:write_entry(data, entry_tmp)
+end
+
+function _M:close()
+  writer_close(self.ctx)
+  self.ctx = nil
 end
 
 return _M

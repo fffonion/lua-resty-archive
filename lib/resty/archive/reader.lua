@@ -13,6 +13,10 @@ local _M = {
 local reader_mt = {__index = _M}
 
 local function reader_close(ctx)
+  if ctx == nil then
+    return
+  end
+
   lib.archive_read_close(ctx)
   lib.archive_read_free(ctx)
 end
@@ -136,6 +140,11 @@ function _M:read_data(...)
     return nil, err
   end
   return entry:read_data()
+end
+
+function _M:close()
+  reader_close(self.ctx)
+  self.ctx = nil
 end
 
 return _M
